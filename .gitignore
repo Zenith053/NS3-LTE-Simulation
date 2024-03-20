@@ -4,3 +4,4 @@
 
 !subdir/
 !CMakeLists.txt
+!scratch-simulator.cc
