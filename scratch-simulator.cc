@@ -80,7 +80,45 @@ int main(int argc, char *argv[]){
                               "Mode", StringValue("Time"),
                               "Speed", StringValue("ns3::ConstantRandomVariable[Constant=10.0]"));
 
-    mobility1.Install(ueNodes);
+    //first 10 ues
+    mobility1.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
+                                   "X", StringValue("-2500"),
+                                   "Y", StringValue("-2500.0"),
+                                   "Rho", StringValue("ns3::UniformRandomVariable[Min=0|Max=500]"));
+
+    for (int i = 0; i < 10; i++) {
+        mobility1.Install(ueNodes.Get(i));
+    }
+
+    //10 - 20 ues
+    mobility1.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
+                                   "X", StringValue("2500"),
+                                   "Y", StringValue("-2500.0"),
+                                   "Rho", StringValue("ns3::UniformRandomVariable[Min=0|Max=500]"));
+
+    for (int i = 10; i < 20; i++) {
+        mobility1.Install(ueNodes.Get(i));
+    }
+
+    //20-30 ues
+    mobility1.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
+                                   "X", StringValue("2500"),
+                                   "Y", StringValue("2500.0"),
+                                   "Rho", StringValue("ns3::UniformRandomVariable[Min=0|Max=500]"));
+
+    for (int i = 20; i < 30; i++) {
+        mobility1.Install(ueNodes.Get(i));
+    }
+
+    //30-40 ues
+    mobility1.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
+                                   "X", StringValue("-2500"),
+                                   "Y", StringValue("2500.0"),
+                                   "Rho", StringValue("ns3::UniformRandomVariable[Min=0|Max=500]"));
+
+    for (int i = 30; i < 40; i++) {
+        mobility1.Install(ueNodes.Get(i));
+    }
 
     //installing lte protocol stack on eNBs
     NetDeviceContainer enbDevs;
