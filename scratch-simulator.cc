@@ -4,6 +4,11 @@
 #include <ns3/lte-module.h>
 #include <ns3/config-store-module.h>
 #include <ns3/spectrum-module.h>
+#include <ns3/rng-seed-manager.h>
+#include <ns3/random-variable-stream.h>
+#include <ns3/internet-module.h>
+#include <ns3/ipv4-global-routing-helper.h>
+#include <ns3/point-to-point-helper.h>
 
 //NS_LOG_COMPONENT_DEFINE("abcd");
 
@@ -20,9 +25,40 @@ int main(int argc, char *argv[]){
 
 //    LogComponentEnable("abcd", LOG_LEVEL_INFO);
 
+    //Seed declaration
+    RngSeedManager::SetSeed(5);
+    RngSeedManager::SetRun(7);
+
+
     Ptr<LteHelper> lteHelper = CreateObject<LteHelper>();
-//    Ptr<PointToPointEpcHelper> epcHelper = CreateObject<PointToPointEpcHelper>();
-//    lteHelper->SetEpcHelper(epcHelper);
+    Ptr<EpcHelper> epcHelper = CreateObject<EpcHelper>()
+    lteHelper->SetEpcHelper(epcHelper);
+    lteHelper->SetSchedulerType("ns3::PfFfMacScheduler")
+
+    //p-gateway
+    Ptr<Node> pgw = epcHelper->GetPgwNode();
+
+    //remotehost
+    NodeContainer remoteHostContainer;
+    remoteHostContainer.Create(1);
+    Ptr<Node> remoteHost = remoteHostContainer.Get(0);
+    InternetStackHelper internet;
+    internet.Install(remoteHostContainer);
+
+    //Internet
+    PointToPointHelper p2ph;
+    p2ph.SetDeviceAttribute("DataRate", DataRateValue(DataRate("1Gb/s")));
+    p2ph.SetDeviceAttribute("Mtu", UintegerValue(1500));
+    p2ph.SetDeviceAttribute("Delay", TimeValue(Seconds((0.010))));
+    NetDeviceContainer internetDevices = p2ph.Install(pgw, remoteHost);
+    Ipv4AddressHelper ipv4h;
+    ipv4h.SetBase("1.0.0.0", "255.0.0.0");
+    Ipv4InterfaceContainer internetIpIfaces = ipv4h.Assign(internetDevices);
+    Ipv4Address remoteHostAddr = internetIpIfaces.GetAddress(1);
+
+    Ipv4StaticRoutingHelper ipv4RoutingHelper;
+    Ptr<Ipv4StaticRouting> remoteHostStaticRouting = ipv4RoutingHelper.GetStaticRouting(remoteHost->GetObject<Ipv4>());
+    remoteHostStaticRouting->AddNetworkRouteTo(Ipv4Address("7.0.0.0"), Ipv4Mask("255.0.0.0"), 1);
 
     NodeContainer enbNodes;
     enbNodes.Create(4);
@@ -50,7 +86,12 @@ int main(int argc, char *argv[]){
 
     //handover algorithms
 
-//    lteHelper->SetHandoverAlgorithmType("ns3::A2A4RsrqHandoverAlgorithm");
+//    lteHelper->SetHandoverAlgorithmType("ns3::A3RsrpHandoverAlgorithm");
+    lteHelper->SetHandoverAlgorithmType ("ns3::A3RsrpHandoverAlgorithm");
+    lteHelper->SetHandoverAlgorithmAttribute ("Hysteresis",
+                                              DoubleValue (3.0));
+    lteHelper->SetHandoverAlgorithmAttribute ("TimeToTrigger",
+                                              TimeValue (MilliSeconds (256)));
 //    lteHelper->SetHandoverAlgorithmAttribute("ServingCellThreshold", UintegerValue(1));
 //    lteHelper->SetHandoverAlgorithmAttribute("NeighbourCellOffset", UintegerValue(1));
 
@@ -75,14 +116,14 @@ int main(int argc, char *argv[]){
     //for uenodes defining stationary mobility model
     MobilityHelper mobility1;
     mobility1.SetMobilityModel("ns3::RandomWalk2dMobilityModel",
-                              "Bounds", RectangleValue(Rectangle(-2500, 2500, -2500, 2500)),
+                              "Bounds", RectangleValue(Rectangle(-5000, 5000, -5000, 5000)),
                               "Time", StringValue("1s"),
                               "Mode", StringValue("Time"),
                               "Speed", StringValue("ns3::ConstantRandomVariable[Constant=10.0]"));
 
     //first 10 ues
     mobility1.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
-                                   "X", StringValue("-2500"),
+                                   "X", StringValue("-2500.0"),
                                    "Y", StringValue("-2500.0"),
                                    "Rho", StringValue("ns3::UniformRandomVariable[Min=0|Max=500]"));
 
@@ -90,9 +131,11 @@ int main(int argc, char *argv[]){
         mobility1.Install(ueNodes.Get(i));
     }
 
+    mobility1.Install(ueNodes);
+
     //10 - 20 ues
     mobility1.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
-                                   "X", StringValue("2500"),
+                                   "X", StringValue("2500.0"),
                                    "Y", StringValue("-2500.0"),
                                    "Rho", StringValue("ns3::UniformRandomVariable[Min=0|Max=500]"));
 
@@ -102,7 +145,7 @@ int main(int argc, char *argv[]){
 
     //20-30 ues
     mobility1.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
-                                   "X", StringValue("2500"),
+                                   "X", StringValue("2500.0"),
                                    "Y", StringValue("2500.0"),
                                    "Rho", StringValue("ns3::UniformRandomVariable[Min=0|Max=500]"));
 
@@ -112,7 +155,7 @@ int main(int argc, char *argv[]){
 
     //30-40 ues
     mobility1.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
-                                   "X", StringValue("-2500"),
+                                   "X", StringValue("-2500.0"),
                                    "Y", StringValue("2500.0"),
                                    "Rho", StringValue("ns3::UniformRandomVariable[Min=0|Max=500]"));
 
@@ -146,6 +189,17 @@ int main(int argc, char *argv[]){
     for (int j = 30; j < 40; j++)
     {
         lteHelper->Attach(ueDevs.Get(j), enbDevs.Get(3));
+    }
+
+    //Install IP stack on UEs
+    internet.Install(ueNodes);
+    Ipv4InterfaceContainer ueIP;
+    ueIP = epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDevs));
+
+    for (int i = 0; i < 40; i++) {
+        Ptr<Node> ueNode = ueNodes.Get(i);
+        Ptr<Ipv4StaticRouting> ueStaticrouting = ipv4RoutingHelper.GetStaticRouting(ueNode->GetObject<Ipv4>);
+        ueStaticrouting->SetDefaultRoute(epcHelper->GetUeDefaultGatewayAddress(), 1);
     }
 
     //Data radio bearer
