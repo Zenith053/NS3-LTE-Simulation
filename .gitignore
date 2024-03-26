@@ -5,3 +5,4 @@
 !subdir/
 !CMakeLists.txt
 !scratch-simulator.cc
+!plot
